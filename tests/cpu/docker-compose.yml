@@ -1,0 +1,55 @@
+version: "3.9"
+
+services:
+  # --- Chroma server ---
+  chroma:
+    image: ghcr.io/chroma-core/chroma:latest
+    container_name: chroma
+    environment:
+      - CHROMA_SERVER_HOST=0.0.0.0
+      - CHROMA_SERVER_HTTP_PORT=11000
+      - ANONYMIZED_TELEMETRY=False
+    ports:
+      - "11000:11000"   # matches CHROMA_PORT=11000
+    volumes:
+      - chroma-data:/chroma/.chroma
+    restart: unless-stopped
+
+  # --- Elasticsearch (single-node dev) ---
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.13.4
+    container_name: elasticsearch
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false      # enable in prod
+      - ES_JAVA_OPTS=-Xms1g -Xmx1g
+    ports:
+      - "9200:9200"     # matches ES_URL=http://127.0.0.1:9200
+    volumes:
+      - es-data:/usr/share/elasticsearch/data
+    restart: unless-stopped
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+
+  # --- Milvus Standalone (embedded etcd/minio for dev) ---
+  milvus:
+    image: milvusdb/milvus:2.4.7
+    container_name: milvus
+    command: ["milvus", "run", "standalone"]
+    environment:
+      - ETCD_USE_EMBED=true
+      - MINIO_USE_EMBED=true
+      - MILVUS_LOG_LEVEL=info
+    ports:
+      - "19530:19530"   # gRPC; matches MILVUS_PORT=19530
+      - "9091:9091"     # optional REST/metrics
+    volumes:
+      - milvus-data:/var/lib/milvus
+    restart: unless-stopped
+
+volumes:
+  chroma-data:
+  es-data:
+  milvus-data:
