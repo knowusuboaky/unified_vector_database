@@ -11,7 +11,7 @@ ACTION="${1:-smoke}"
 COMPOSE="docker compose -f tests/cpu/docker-compose.yml"
 
 # Ports must match your code & docker-compose.yml
-CHROMA_URL="${CHROMA_URL:-http://127.0.0.1:11000}"
+CHROMA_URL="${CHROMA_URL:-http://127.0.0.1:8000}"
 ES_URL="${ES_URL:-http://127.0.0.1:9200}"
 MILVUS_HOST="${MILVUS_HOST:-127.0.0.1}"
 MILVUS_PORT="${MILVUS_PORT:-19530}"
@@ -31,7 +31,7 @@ ensure_venv_and_deps() {
   source .venv/bin/activate
   python -m pip install --upgrade pip >/dev/null
   echo "Installing client libraries (chromadb, elasticsearch, pymilvus, faiss-cpu)..."
-  pip install -q chromadb elasticsearch pymilvus faiss-cpu
+  python -m pip install -q chromadb elasticsearch pymilvus faiss-cpu
 }
 
 wait_http_ok() {
@@ -40,10 +40,12 @@ wait_http_ok() {
   local timeout="${3:-300}"
 
   echo "Waiting for $name at $url (timeout ${timeout}s)..."
-  local start=$(date +%s)
+  local start
+  start=$(date +%s)
   until curl -fsS "$url" >/dev/null 2>&1; do
     sleep 3
-    local now=$(date +%s)
+    local now
+    now=$(date +%s)
     if [ $((now - start)) -ge "$timeout" ]; then
       echo "ERROR: $name did not become healthy in time ($url)" >&2
       $COMPOSE logs --no-color "$name" || true
@@ -79,7 +81,7 @@ PY
 smoke_checks() {
   echo
   echo "== Chroma heartbeat =="
-  curl -fsS "$CHROMA_URL/api/v1/heartbeat" | $JQ .
+  curl -fsS "$CHROMA_URL/api/v2/heartbeat" | $JQ .
 
   echo
   echo "== Elasticsearch info =="
@@ -94,14 +96,14 @@ case "$ACTION" in
   up)
     $COMPOSE up -d
     ensure_venv_and_deps
-    wait_http_ok "$CHROMA_URL/api/v1/heartbeat" "chroma" 300
+    wait_http_ok "$CHROMA_URL/api/v2/heartbeat" "chroma" 300
     wait_http_ok "$ES_URL" "elasticsearch" 300
     wait_milvus "$MILVUS_HOST" "$MILVUS_PORT" 300
     echo
     echo "All vector backends are healthy."
     echo "Env to use in your app:"
     echo "  VECTOR_DB=chroma   (or elastic | milvus | faiss)"
-    echo "  CHROMA_HOST=127.0.0.1  CHROMA_PORT=11000"
+    echo "  CHROMA_HOST=127.0.0.1  CHROMA_PORT=8000"
     echo "  ES_URL=http://127.0.0.1:9200"
     echo "  MILVUS_HOST=127.0.0.1  MILVUS_PORT=19530"
     ;;
@@ -114,7 +116,7 @@ case "$ACTION" in
   smoke)
     $COMPOSE up -d
     ensure_venv_and_deps
-    wait_http_ok "$CHROMA_URL/api/v1/heartbeat" "chroma" 300
+    wait_http_ok "$CHROMA_URL/api/v2/heartbeat" "chroma" 300
     wait_http_ok "$ES_URL" "elasticsearch" 300
     wait_milvus "$MILVUS_HOST" "$MILVUS_PORT" 300
     smoke_checks

@@ -2,7 +2,7 @@
 
 This folder spins up **three vector databases** for local/dev testing:
 
-* **Chroma** (HTTP `:11000`)
+* **Chroma** (HTTP `:8000`)
 * **Elasticsearch** (HTTP `:9200`)
 * **Milvus** (gRPC `:19530`, metrics `:9091`)
 
@@ -66,7 +66,7 @@ This starts all services, waits until healthy, prints quick info, then tears eve
 
 | Backend           | Host               | Port  | Env in your app                              |
 | ----------------- | ------------------ | ----- | -------------------------------------------- |
-| **Chroma**        | `http://127.0.0.1` | 11000 | `CHROMA_HOST=127.0.0.1`, `CHROMA_PORT=11000` |
+| **Chroma**        | `http://127.0.0.1` | 8000 | `CHROMA_HOST=127.0.0.1`, `CHROMA_PORT=8000` |
 | **Elasticsearch** | `http://127.0.0.1` | 9200  | `ES_URL=http://127.0.0.1:9200`               |
 | **Milvus**        | `127.0.0.1`        | 19530 | `MILVUS_HOST=127.0.0.1`, `MILVUS_PORT=19530` |
 
@@ -87,7 +87,7 @@ Both scripts:
 3. `pip install chromadb elasticsearch pymilvus faiss-cpu`
 4. Wait for:
 
-   * **Chroma**: `GET /api/v1/heartbeat`
+   * **Chroma**: `GET /api/v2/heartbeat`
    * **Elasticsearch**: `GET /`
    * **Milvus**: Python connect via `pymilvus`
 5. Print the env vars you’ll use in your app
@@ -98,7 +98,7 @@ Both scripts:
 
 ```bash
 # Chroma
-curl -fsS http://127.0.0.1:11000/api/v1/heartbeat
+curl -fsS http://127.0.0.1:8000/api/v2/heartbeat
 
 # Elasticsearch
 curl -fsS http://127.0.0.1:9200 | jq .
@@ -122,7 +122,7 @@ PY
 * **Chroma heartbeat not responding**
   Check `docker logs chroma`.
 * **Port already in use**
-  Another service is bound to `11000/9200/19530`. Stop it or change the mapped port(s) in the compose file.
+  Another service is bound to `8000/9200/19530`. Stop it or change the mapped port(s) in the compose file.
 
 ---
 

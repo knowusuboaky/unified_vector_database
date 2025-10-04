@@ -1,18 +1,18 @@
-version: "3.9"
+version: "3.5"
 
 services:
-  # --- Chroma server ---
+  # --- Chroma @ 8000 (Docker Hub image) ---
   chroma:
-    image: ghcr.io/chroma-core/chroma:latest
+    image: chromadb/chroma:latest
     container_name: chroma
     environment:
       - CHROMA_SERVER_HOST=0.0.0.0
-      - CHROMA_SERVER_HTTP_PORT=11000
+      - CHROMA_SERVER_HTTP_PORT=8000
       - ANONYMIZED_TELEMETRY=False
     ports:
-      - "11000:11000"   # matches CHROMA_PORT=11000
+      - "8000:8000"
     volumes:
-      - chroma-data:/chroma/.chroma
+      - chroma-data:/data
     restart: unless-stopped
 
   # --- Elasticsearch (single-node dev) ---
@@ -21,10 +21,10 @@ services:
     container_name: elasticsearch
     environment:
       - discovery.type=single-node
-      - xpack.security.enabled=false      # enable in prod
+      - xpack.security.enabled=false
       - ES_JAVA_OPTS=-Xms1g -Xmx1g
     ports:
-      - "9200:9200"     # matches ES_URL=http://127.0.0.1:9200
+      - "9200:9200"
     volumes:
       - es-data:/usr/share/elasticsearch/data
     restart: unless-stopped
@@ -33,23 +33,58 @@ services:
         soft: -1
         hard: -1
 
-  # --- Milvus Standalone (embedded etcd/minio for dev) ---
-  milvus:
-    image: milvusdb/milvus:2.4.7
-    container_name: milvus
-    command: ["milvus", "run", "standalone"]
+  # --- Milvus (official standalone deps) ---
+  etcd:
+    container_name: milvus-etcd
+    image: quay.io/coreos/etcd:v3.5.18
     environment:
-      - ETCD_USE_EMBED=true
-      - MINIO_USE_EMBED=true
-      - MILVUS_LOG_LEVEL=info
-    ports:
-      - "19530:19530"   # gRPC; matches MILVUS_PORT=19530
-      - "9091:9091"     # optional REST/metrics
+      - ETCD_AUTO_COMPACTION_MODE=revision
+      - ETCD_AUTO_COMPACTION_RETENTION=1000
+      - ETCD_QUOTA_BACKEND_BYTES=4294967296
+      - ETCD_SNAPSHOT_COUNT=50000
     volumes:
-      - milvus-data:/var/lib/milvus
+      - ${DOCKER_VOLUME_DIRECTORY:-.}/volumes/etcd:/etcd
+    command: etcd -advertise-client-urls=http://etcd:2379 -listen-client-urls http://0.0.0.0:2379 --data-dir /etcd
+    restart: unless-stopped
+
+  minio:
+    container_name: milvus-minio
+    image: minio/minio:RELEASE.2024-12-18T13-15-44Z
+    environment:
+      MINIO_ACCESS_KEY: minioadmin
+      MINIO_SECRET_KEY: minioadmin
+    ports:
+      - "9001:9001"
+      - "9000:9000"
+    volumes:
+      - ${DOCKER_VOLUME_DIRECTORY:-.}/volumes/minio:/minio_data
+    command: minio server /minio_data --console-address ":9001"
+    restart: unless-stopped
+
+  standalone:
+    container_name: milvus-standalone
+    image: milvusdb/milvus:v2.6.2
+    command: ["milvus", "run", "standalone"]
+    security_opt:
+      - seccomp:unconfined
+    environment:
+      ETCD_ENDPOINTS: etcd:2379
+      MINIO_ADDRESS: minio:9000
+      MQ_TYPE: woodpecker
+    volumes:
+      - ${DOCKER_VOLUME_DIRECTORY:-.}/volumes/milvus:/var/lib/milvus
+    ports:
+      - "19530:19530"
+      - "9091:9091"
+    depends_on:
+      - etcd
+      - minio
     restart: unless-stopped
 
 volumes:
   chroma-data:
   es-data:
-  milvus-data:
+
+networks:
+  default:
+    name: milvus
