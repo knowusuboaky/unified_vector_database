@@ -81,9 +81,58 @@ services:
       - minio
     restart: unless-stopped
 
+  # --- Qdrant (vector DB) ---
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: qdrant
+    restart: unless-stopped
+    ports:
+      - "6333:6333"   # HTTP
+      - "6334:6334"   # gRPC
+    environment:
+      # Uncomment to enable API key auth:
+      # QDRANT__SERVICE__API_KEY: "change-me"
+      QDRANT__SERVICE__GRPC_PORT: 6334
+      QDRANT__STORAGE__STORAGE_PATH: "/qdrant/storage"
+      QDRANT__STORAGE__SNAPSHOTS_PATH: "/qdrant/snapshots"
+    volumes:
+      - qdrant-storage:/qdrant/storage
+      - qdrant-snapshots:/qdrant/snapshots
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:6333/heartbeat"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+
+  # --- Weaviate (BYO embeddings) ---
+  weaviate:
+    image: semitechnologies/weaviate:latest
+    container_name: weaviate
+    restart: unless-stopped
+    ports:
+      - "8080:8080"   # REST / GraphQL
+      - "50051:50051" # gRPC (if supported by image)
+    environment:
+      QUERY_DEFAULTS_LIMIT: "25"
+      AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED: "true"   # set "false" + OIDC for prod
+      PERSISTENCE_DATA_PATH: "/var/lib/weaviate"
+      DEFAULT_VECTORIZER_MODULE: "none"                 # bring your own vectors
+      ENABLE_MODULES: ""
+      CLUSTER_HOSTNAME: "node1"
+    volumes:
+      - weaviate-data:/var/lib/weaviate
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/v1/.well-known/ready"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+
 volumes:
   chroma-data:
   es-data:
+  qdrant-storage:
+  qdrant-snapshots:
+  weaviate-data:
 
 networks:
   default:
