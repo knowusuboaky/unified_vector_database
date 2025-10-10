@@ -99,7 +99,7 @@ services:
       - qdrant-storage:/qdrant/storage
       - qdrant-snapshots:/qdrant/snapshots
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:6333/heartbeat"]
+      test: ["CMD", "wget", "-qO-", "http://localhost:6333/healthz"]
       interval: 15s
       timeout: 5s
       retries: 10
